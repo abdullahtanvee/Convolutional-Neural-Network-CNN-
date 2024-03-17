@@ -1,0 +1,195 @@
+---
+title: "Convolutional Neural Network"
+output: html_document
+---
+
+# Introduction
+
+A particular kind of deep learning technique called a Convolutional Neural Network (CNN), or ConvNet, is primarily made for applications requiring object recognition, such as picture categorization, detection, and segmentation.
+
+In this exercise, convolutional neural networks (CNNs) is to develop for an image categorization model. The objective is to differentiate between photos of dogs and cats. The work is completed in R.
+
+```{r}
+# Loading all the necessary libraries
+library(keras)
+library(abind)
+library(jpeg)
+```
+
+These libraries will be helpful in loading and building the model.
+
+Our data is in the form of zip file lets extract the zip file and read and check the classes
+
+```{r}
+# Specify the path to your .zip file
+data_path <- "kagglecatsanddogs_5340.zip"
+
+# Unzip the file
+unzip(data_path)
+
+print('The data set has been extracted.')
+
+
+path <- "PetImages"
+
+# List all files in the directory
+classes <- list.files(path)
+
+# Print the files
+print(classes)
+```
+
+Data has been extracted successfully and checked the two classes that are cats and dogs. The goal is to build the model to classify the image either it is a cat or dog.
+
+## Data Preparation for Model
+
+The data is then divided into training data and validation data for training and validating the model.
+
+```{r}
+# Specify the base directory
+base_dir <- "PetImages"
+
+# All images will be rescaled by 1/255
+datagen <- image_data_generator(rescale = 1/255, validation_split = 0.1)
+
+# Create the training dataset
+train_generator <- flow_images_from_directory(
+  base_dir, 
+  datagen, 
+  target_size = c(200, 200), 
+  batch_size = 32,
+  subset = "training",
+  seed = 1,
+  class_mode = "binary"
+)
+
+# Create the validation dataset
+validation_generator <- flow_images_from_directory(
+  base_dir, 
+  datagen, 
+  target_size = c(200, 200), 
+  batch_size = 32,
+  subset = "validation",
+  seed = 1,
+  class_mode = "binary"
+)
+```
+
+# Model Building
+
+Utilizing the R Keras Sequential API to create a Convolutional Neural Network (CNN) model. The model is intended to be used for 200x200x3 picture classification jobs.
+\
+Four convolutional layers make up the design, and each one is followed by a max pooling layer for feature extraction. The output is flattened and then goes through three thick layers with ReLU activation, batch normalization, and dropout for regularization strewn throughout. For binary classification, the last layer employs a sigmoid activation function.
+
+```{r}
+# Define the model
+model <- keras_model_sequential() %>%
+  layer_conv_2d(filters = 32, kernel_size = c(3, 3), activation = "relu",
+                input_shape = c(200, 200, 3)) %>%
+  layer_max_pooling_2d(pool_size = c(2, 2)) %>%
+  layer_conv_2d(filters = 64, kernel_size = c(3, 3), activation = "relu") %>%
+  layer_max_pooling_2d(pool_size = c(2, 2)) %>%
+  layer_conv_2d(filters = 64, kernel_size = c(3, 3), activation = "relu") %>%
+  layer_max_pooling_2d(pool_size = c(2, 2)) %>%
+  layer_conv_2d(filters = 64, kernel_size = c(3, 3), activation = "relu") %>%
+  layer_max_pooling_2d(pool_size = c(2, 2)) %>%
+  layer_flatten() %>%
+  layer_dense(units = 512, activation = "relu") %>%
+  layer_batch_normalization() %>%
+  layer_dense(units = 512, activation = "relu") %>%
+  layer_dropout(rate = 0.1) %>%
+  layer_batch_normalization() %>%
+  layer_dense(units = 512, activation = "relu") %>%
+  layer_dropout(rate = 0.2) %>%
+  layer_batch_normalization() %>%
+  layer_dense(units = 1, activation = "sigmoid")
+```
+
+```{r}
+print("The Summary of the model is given below")
+summary(model)
+```
+
+## Findings
+
+Convolutional neural network (CNN) is the type of model you created. It has 3,902,529 total parameters, of which 3,899,457 are trainable and 3,072 are not.\
+Four sets of Conv2D and MaxPooling2D layers are used in the architecture's first stages to extract features from the input pictures. There are 32, 64, 64, and 64 filters in each of the Conv2D layers. A 3x3 kernel and the "relu" activation function are used by each Conv2D layer. The pool size used by all MaxPooling2D layers is 2x2.\
+After being flattened, the output from these layers is sent into three Dense layers, each consisting of 512 units, all of which use the activation function "relu." To normalize neuronal activations and enhance network stability and performance, batch normalization is conducted following the first Dense layer and after each Dropout layer. To avoid overfitting, dropout layers with rates of 0.1 and 0.2 are employed.\
+This architecture is appropriate for binary classification applications since its final Dense layer has one unit and employs the "sigmoid" activation function. The output form of each layer, the quantity of parameters in each layer, and the trainability of the parameters are all displayed in the model summary.\
+
+# Compilation of the Model
+
+```{r}
+# Compile the model
+model %>% compile(
+  loss = "binary_crossentropy",
+  optimizer = optimizer_adam(),
+  metrics = c("accuracy")
+)
+```
+
+-   loss = "binary_crossentropy": During training, this loss function is applied. For binary classification issues, binary crossentropy is appropriate.
+
+-   optimizer = optimizer_adam(): The technique for first-order gradient-based optimization of stochastic objective functions, known as the Adam optimizer, is used.
+
+-   metrics = c("accuracy"): The model's performance is assessed using accuracy as the metric.
+
+After compiling, the model is ready to be trained using the `fit()` function with training data. The model\'s performance can then be evaluated on the test data.
+
+# Model Fitting
+
+```{r}
+# Train the model
+history <- model %>% fit_generator(
+  train_generator,
+  steps_per_epoch = 10,
+  epochs = 10
+)
+print(history)
+```
+
+The model was fed the photographs during the training phase, and its weights were modified in response to how well it performed. Throughout training, model's accuracy and loss to assess its development is monitored.
+
+# Testing the Model
+
+After building and Training the Model the model is testing on the data to check the accuracy of the model.
+
+```{r}
+image_path <- "PetImages\\Cat\\1.jpg"
+
+# Load the image
+test_image <- image_load(image_path, target_size = c(200, 200))
+
+# Convert the image to an array
+test_image <- image_to_array(test_image)
+
+# Add an extra dimension to the image
+test_image <- array_reshape(test_image, c(1, dim(test_image)))
+
+# Use the model to make a prediction
+result <- model %>% predict(test_image)
+
+# Print the prediction
+if (result >= 0.5) {
+  print("Dog")
+} else {
+  print("Cat")
+}
+```
+
+As the image is input from the cats folder and the model is easily classify it to cat.
+
+# Conclusion and Finding
+
+Among the deep learning models, CNNs are very good in image identification applications. They may be utilized with pre-trained architectures such as VGG-16, ResNet50, etc., and can independently extract features from input data. They also exhibit translation-invariant qualities.\
+Utilizing the R Keras Sequential API to create a CNN model. The model consists of many max pooling layers for downsampling, convolutional layers for feature extraction, and dense layers for classification. Additionally, the model employs dropout and batch normalization for regularization.
+
+# References
+
+1.  <https://www.analyticsvidhya.com/blog/2021/06/beginner-friendly-project-cat-and-dog-classification-using-cnn/>
+
+2.  <https://www.geeksforgeeks.org/introduction-convolution-neural-network/>
+
+3.  <https://machinelearningmastery.com/deep-learning-for-computer-vision/>
+
+\
